@@ -12,8 +12,12 @@ ax = fig.add_subplot(projection='3d')
 for p in valid_points:
     ax.scatter(p[0], p[1], p[2], marker='o')
 
+ax.set_xlim3d(-1, 1)
+ax.set_ylim3d(-1, 1)
+ax.set_zlim3d(-1, 1)
 ax.set_xlabel('X Label')
 ax.set_ylabel('Y Label')
 ax.set_zlabel('Z Label')
-
 plt.show()
+
+
