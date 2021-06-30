@@ -1,4 +1,4 @@
-import numpy as np
+import cupy as cp
 
 
 def p_norm(v, p):
