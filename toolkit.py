@@ -7,5 +7,5 @@ def p_norm(v, p):
 
 
 def get_random_point3d(min, max):
-    p = [np.random.uniform() * (max - min) + min for x in range(3)]
+    p = [cp.random.uniform() * (max - min) + min for x in range(3)]
     return p
