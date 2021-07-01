@@ -2,14 +2,16 @@ import cupy as cp
 from cupy import float64, float32, float16
 import timeit
 
-# zadanie 3 wykonane za pomocą układu GPU za pomocą bibliotekii cupy
+# zadanie 3 wykonane za pomocą układu GPU za pomocą toolkitu cuda 11.3 oraz bibliotece cupy
 
-# ustawienie ilosci potrzebnej pamier vram
+# ustawienie ilosci potrzebnej pamieci vram
 
 mempool = cp.get_default_memory_pool()
 pinned_mempool = cp.get_default_pinned_memory_pool()
+gpu_memory = 11  # ustawić limit pamięci w GB zależnie od posiadanego gpu
+memory_scaling_factor = gpu_memory/11
 with cp.cuda.Device(0):
-    mempool.set_limit(size=11 * 1024 ** 3)  # 11 GiB czyli dałem co miałem
+    mempool.set_limit(size=gpu_memory * 1024 ** 3)
 
 
 # funkcja wielomianowa f1
@@ -28,7 +30,7 @@ def check_conditions(z, zf1, zf2):
     return cp.logical_and((z <= zf1), (z >= zf2))
 
 
-def t3(N, type):
+def t3(N, prec):
     print("-------------------------------------")
     print("URUCHOMIONO")
     a = [0, 1, 2, 3, 4, 5, 6]
@@ -57,6 +59,11 @@ def t3(N, type):
     print("Ilość losowanych punktów to :", N / 10 ** 6, "Mln.")
     zf1 = f1(x, y)  # ograniczenie z góry
     zf2 = f2(x, y)  # ograniczenie z dołu
+    xsquared = cp.power(x, 2)
+    ysquared = cp.power(y, 2)
+
+    x = None
+    y = None
 
     # generacja z
     z = cp.random.uniform(box_z_min, box_z_max, size=N)
@@ -65,14 +72,11 @@ def t3(N, type):
     # niebezpośrednio zwalniamy pamięć w Pythonie
     zf1 = None
     zf2 = None
-    xy = None
 
     print("Ilość GB zajętych po zwolnieniu1", mempool.used_bytes() / 1000000000, "GB")
-    xsquared = cp.power(x, 2)
-    ysquared = cp.power(y, 2)
 
-    x = None
-    y = None
+
+
     z = None
 
     print("Ilość GB zajętych po zwolnieniu xyz", mempool.used_bytes() / 1000000000, "GB")
@@ -80,7 +84,7 @@ def t3(N, type):
     h = box_z_max - box_z_min
     r = 1.
     box_vol = (4. * (r ** 2.) * h)
-    ratio = cp.count_nonzero(p_in_cylinder)/ N
+    ratio = cp.count_nonzero(p_in_cylinder) / N
 
     print("box vol = ", box_vol)
     print("ratio = ", ratio)
@@ -88,32 +92,32 @@ def t3(N, type):
     print("Szukana objętość to :", result)
 
 
-test_number = 1
-N64 = int(1.2 * 10 ** 8)
+test_count = 6
+N64 = int((1.2 * 10 ** 8)*memory_scaling_factor)
 precyzja = float64
 
-t64 = timeit.Timer(lambda: t3(N64, precyzja)).timeit(test_number) / test_number
+t64 = timeit.Timer(lambda: t3(N64, precyzja)).timeit(test_count) / test_count
 
 mempool.free_all_blocks()
 pinned_mempool.free_all_blocks()
 
-N32 = int(3 * 10 ** 8)
+N32 = int((3 * 10 ** 8)*memory_scaling_factor)
 precyzja = float32
-t32 = timeit.Timer(lambda: t3(N32, precyzja)).timeit(test_number) / test_number
+t32 = timeit.Timer(lambda: t3(N32, precyzja)).timeit(test_count) / test_count
 
 mempool.free_all_blocks()
 pinned_mempool.free_all_blocks()
 
-N16 = int(5.2 * 10 ** 8)
+N16 = int((5.2 * 10 ** 8)*memory_scaling_factor)
 precyzja = float16
-t16 = timeit.Timer(lambda: t3(N16, precyzja)).timeit(test_number) / test_number
+t16 = timeit.Timer(lambda: t3(N16, precyzja)).timeit(test_count) / test_count
 
 print("Precyzja = 64bity")
 print("Ilość losowanych pkt.", N64 / 10 ** 6, "mln")
-print("Czas(śr. z ", test_number, ") = ", t64, '\n')
+print("Czas(śr. z ", test_count, ") = ", t64, '\n')
 print("Precyzja = 32bity")
 print("Ilość losowanych pkt.", N32 / 10 ** 6, "mln")
-print("Czas(śr. z ", test_number, ") = ", t32, '\n')
+print("Czas(śr. z ", test_count, ") = ", t32, '\n')
 print("Precyzja = 16bity")
 print("Ilość losowanych pkt.", N16 / 10 ** 6, "mln")
-print("Czas(śr. z ", test_number, " ) = ", t16, '\n')
+print("Czas(śr. z ", test_count, " ) = ", t16, '\n')
