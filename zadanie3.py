@@ -1,5 +1,5 @@
 import cupy as cp
-from cupy import float32, float16
+from cupy import float64, float32, float16
 import timeit
 
 # zadanie 3 wykonane za pomocą układu GPU za pomocą bibliotekii cupy
@@ -25,10 +25,7 @@ def f2(x, y):
 
 
 def check_conditions(z, zf1, zf2):
-    # definiujemy wektory Z w pamięci współdzielonej
-    t1 = (z <= zf1)
-    t2 = (z >= zf2)
-    return cp.logical_and(t1, t2)
+    return cp.logical_and((z <= zf1), (z >= zf2))
 
 
 def t3(N, type):
@@ -81,9 +78,9 @@ def t3(N, type):
     print("Ilość GB zajętych po zwolnieniu xyz", mempool.used_bytes() / 1000000000, "GB")
     p_in_cylinder = cp.logical_and((xsquared + ysquared) <= 1, p_in_volume).astype(bool)
     h = box_z_max - box_z_min
-    r = 1
-    box_vol = (4 * (r ** 2) * h)
-    ratio = cp.count_nonzero(p_in_cylinder) / N
+    r = 1.
+    box_vol = (4. * (r ** 2.) * h)
+    ratio = cp.count_nonzero(p_in_cylinder)/ N
 
     print("box vol = ", box_vol)
     print("ratio = ", ratio)
@@ -91,7 +88,32 @@ def t3(N, type):
     print("Szukana objętość to :", result)
 
 
-N = int(3 * 10 ** 8)
+test_number = 1
+N64 = int(1.2 * 10 ** 8)
+precyzja = float64
+
+t64 = timeit.Timer(lambda: t3(N64, precyzja)).timeit(test_number) / test_number
+
+mempool.free_all_blocks()
+pinned_mempool.free_all_blocks()
+
+N32 = int(3 * 10 ** 8)
 precyzja = float32
-t = timeit.Timer(lambda: t3(N, precyzja))
-print("WYNIK :\nCzas wykonania programu(średnia z 10 wykonań) =", t.timeit(10) / 10, "s")
+t32 = timeit.Timer(lambda: t3(N32, precyzja)).timeit(test_number) / test_number
+
+mempool.free_all_blocks()
+pinned_mempool.free_all_blocks()
+
+N16 = int(5.2 * 10 ** 8)
+precyzja = float16
+t16 = timeit.Timer(lambda: t3(N16, precyzja)).timeit(test_number) / test_number
+
+print("Precyzja = 64bity")
+print("Ilość losowanych pkt.", N64 / 10 ** 6, "mln")
+print("Czas(śr. z ", test_number, ") = ", t64, '\n')
+print("Precyzja = 32bity")
+print("Ilość losowanych pkt.", N32 / 10 ** 6, "mln")
+print("Czas(śr. z ", test_number, ") = ", t32, '\n')
+print("Precyzja = 16bity")
+print("Ilość losowanych pkt.", N16 / 10 ** 6, "mln")
+print("Czas(śr. z ", test_number, " ) = ", t16, '\n')
