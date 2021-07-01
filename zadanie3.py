@@ -1,4 +1,5 @@
 import cupy as cp
+from cupy import float32, float16
 import timeit
 
 # zadanie 3 wykonane za pomocą układu GPU za pomocą bibliotekii cupy
@@ -6,31 +7,21 @@ import timeit
 # ustawienie ilosci potrzebnej pamier vram
 
 mempool = cp.get_default_memory_pool()
-
+pinned_mempool = cp.get_default_pinned_memory_pool()
 with cp.cuda.Device(0):
-    mempool.set_limit(size=10 * 1024 ** 3)  # 10 GiB
-
-# liczba punktów do wylosowania
-N = int(1.2 * (10 ** 8))
-
-# miejsce podziału połączonej tablicy xy
-y_start = N
-x_end = N
-
-# ilość wątkow przypadających na 1 blok oraz posiadających rownoczesny dostęp do pamieci wspolnej
-TPB = 64
+    mempool.set_limit(size=11 * 1024 ** 3)  # 11 GiB czyli dałem co miałem
 
 
 # funkcja wielomianowa f1
 # @cuda.jit('float32[:](float32[:])', device=True)
-def f1(xy):
-    return cp.add(cp.add(cp.power(xy[0:x_end], 5), cp.power(xy[y_start:2 * N], 5)), 5)
+def f1(x, y):
+    return cp.power(x, 5) + cp.power(y, 5) + 5
 
 
 # funkcja trygonometryczna f2
 
-def f2(xy):
-    return -cp.sin(3 * xy[0:x_end]) - cp.cos(3 * xy[y_start:2 * N]) - 4
+def f2(x, y):
+    return -cp.sin(3 * x) - cp.cos(3 * y) - 4
 
 
 def check_conditions(z, zf1, zf2):
@@ -40,7 +31,7 @@ def check_conditions(z, zf1, zf2):
     return cp.logical_and(t1, t2)
 
 
-def t3():
+def t3(N, type):
     print("-------------------------------------")
     print("URUCHOMIONO")
     a = [0, 1, 2, 3, 4, 5, 6]
@@ -60,18 +51,35 @@ def t3():
     box_xy_max = 1
     box_xy_min = -1
 
-    # 3 losowe współrzędne losowane w określonym prostopadłościanie
-    x = cp.random.uniform(box_xy_min, box_xy_max, size=N)
-    y = cp.random.uniform(box_xy_min, box_xy_max, size=N)
-    xy = cp.concatenate((x, y)).astype(cp.float32)
-    z = cp.random.uniform(box_z_min, box_z_max, size=N)
+    # 3 losowe współrzędne losowane w określonym prostopadłościanie, z generowane później ze względu na ograniczenia
+    # pamięci
+    x = cp.random.uniform(box_xy_min, box_xy_max, size=N).astype(precyzja)
+    y = cp.random.uniform(box_xy_min, box_xy_max, size=N).astype(precyzja)
 
+    print("Ilość GB zajętych po generacji xyz", mempool.used_bytes() / 1000000000, "GB")
     print("Ilość losowanych punktów to :", N / 10 ** 6, "Mln.")
-    zf1 = f1(xy)  # ograniczenie z góry
-    zf2 = f2(xy)  # ograniczenie z dołu
+    zf1 = f1(x, y)  # ograniczenie z góry
+    zf2 = f2(x, y)  # ograniczenie z dołu
 
+    # generacja z
+    z = cp.random.uniform(box_z_min, box_z_max, size=N)
     p_in_volume = check_conditions(z, zf1, zf2)  # wektor binarny, pyt : czy punkt należy do poszukiwanej objetosci ?
-    p_in_cylinder = cp.logical_and((cp.power(x, 2) + cp.power(y, 2)) <= 1, p_in_volume)
+    print("Ilość GB zajętych po generacji f1(x,y) i f2(x,y)", mempool.used_bytes() / 1000000000, "GB")
+    # niebezpośrednio zwalniamy pamięć w Pythonie
+    zf1 = None
+    zf2 = None
+    xy = None
+
+    print("Ilość GB zajętych po zwolnieniu1", mempool.used_bytes() / 1000000000, "GB")
+    xsquared = cp.power(x, 2)
+    ysquared = cp.power(y, 2)
+
+    x = None
+    y = None
+    z = None
+
+    print("Ilość GB zajętych po zwolnieniu xyz", mempool.used_bytes() / 1000000000, "GB")
+    p_in_cylinder = cp.logical_and((xsquared + ysquared) <= 1, p_in_volume).astype(bool)
     h = box_z_max - box_z_min
     r = 1
     box_vol = (4 * (r ** 2) * h)
@@ -83,4 +91,7 @@ def t3():
     print("Szukana objętość to :", result)
 
 
-print("Czas wykonania programu(średnia z 50 wykonań) =", timeit.timeit(stmt=t3, number=50) / 50, "s")
+N = int(3 * 10 ** 8)
+precyzja = float32
+t = timeit.Timer(lambda: t3(N, precyzja))
+print("WYNIK :\nCzas wykonania programu(średnia z 10 wykonań) =", t.timeit(10) / 10, "s")
