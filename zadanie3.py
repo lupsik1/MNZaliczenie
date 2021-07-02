@@ -21,7 +21,6 @@ def f1(x, y):
 
 
 # funkcja trygonometryczna f2
-
 def f2(x, y):
     return -cp.sin(3 * x) - cp.cos(3 * y) - 4
 
